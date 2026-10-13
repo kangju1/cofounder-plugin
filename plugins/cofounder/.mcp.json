@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cofounder": {
+      "type": "http",
+      "url": "https://cofounder-api.jengablock.com/mcp/"
+    }
+  }
+}
