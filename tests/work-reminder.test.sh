@@ -1,5 +1,5 @@
 #!/bin/sh
-# 업무 기록 알림 훅(plugins/cofounder/hooks/work-reminder.sh) 단위 시험 — 플랫폼 Feature 1197.
+# 업무 기록 알림 훅(plugins/cofounder/hooks/work-reminder.sh) 단위 시험 — 플랫폼 Feature 1197·1201.
 # 쓰는 법: sh claude-plugin/tests/work-reminder.test.sh   (dash 로도: dash claude-plugin/tests/work-reminder.test.sh)
 # 표본 stdin JSON 을 넣고 추가 문맥 출력이 기대대로인지 본다. 상태 파일은 임시 폴더에만 쓴다.
 set -u
@@ -33,6 +33,16 @@ j() { # session tool input-json [response-json]
   r=${4:-}; [ -n "$r" ] || r='{}'
   printf '{"session_id":"%s","transcript_path":"/x/%s.jsonl","cwd":"/tmp","permission_mode":"default","hook_event_name":"PostToolUse","tool_name":"%s","tool_input":%s,"tool_response":%s,"tool_use_id":"toolu_1"}' \
     "$1" "$1" "$2" "$3" "$r"
+}
+pr() { # session prompt-text — UserPromptSubmit 입력
+  printf '{"session_id":"%s","transcript_path":"/x/%s.jsonl","cwd":"/tmp","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"%s"}' \
+    "$1" "$1" "$2"
+}
+valid_prompt_json() {
+  case "$1" in
+    '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"'*'"}}') return 0 ;;
+    *) return 1 ;;
+  esac
 }
 P=mcp__plugin_cofounder_cofounder__
 S=mcp__spnv-platform__
@@ -86,7 +96,53 @@ expect "NotebookEdit 첫 회 → 알림" "$out" "열린 업무 구간이 없습�
 out=$(run "$(j s7 Read '{"file_path":"/tmp/a"}')")
 expect "Read(쓰기 아님) → 없음" "$out" ""
 
+# 4. 세션의 첫 요청(UserPromptSubmit) — Feature 1201
+out=$(run "$(pr p1 '배송 정책서를 써 주세요')")
+expect "첫 요청 → 시작 기록 알림" "$out" "mark_work(phase=start)"
+expect "첫 요청 알림에 other_sheets" "$out" "other_sheets"
+expect "첫 요청 알림에 질문만이면 넘어간다" "$out" "질문에 답하기만 하는 대화면 넘어갑니다"
+valid_prompt_json "$out" && expect "첫 요청 출력 형식(hookEventName=UserPromptSubmit)" ok ok || expect "첫 요청 출력 형식" "$out" "__형식불일치__"
+case "$out" in *—*) expect "첫 요청 알림에 엠대시 없음" "$out" "__엠대시__" ;; *) expect "첫 요청 알림에 엠대시 없음" ok ok ;; esac
+out=$(run "$(pr p1 '하나 더')")
+expect "두 번째 요청 → 없음" "$out" ""
+# 첫 요청 알림 뒤 기록이 없으면 첫 편집 때 한 번 더(문장이 다르다), 그 뒤로는 없음
+out=$(run "$(j p1 Edit '{"file_path":"/tmp/a"}')")
+expect "첫 요청 알림 + 기록 없음 + 첫 Edit → 다시 알림" "$out" "첫 요청 때 안내한 업무 시작 기록이 아직 없습니다"
+valid_json "$out" && expect "다시 알림 출력 형식(PostToolUse)" ok ok || expect "다시 알림 출력 형식" "$out" "__형식불일치__"
+out=$(run "$(j p1 Write '{"file_path":"/tmp/b"}')")
+expect "그다음 Write → 없음" "$out" ""
+out=$(run "$(pr p1 '세 번째')")
+expect "편집 알림 뒤 요청 → 없음" "$out" ""
+# 첫 요청 알림 뒤 기록하고 끝냈으면(구간 닫힘) 첫 편집 알림 생략
+run "$(pr p2 '정책서')" >/dev/null
+run "$(j p2 ${P}mark_work '{"cell":"plan","item":"정책서","phase":"start"}')" >/dev/null
+run "$(j p2 ${S}mark_work '{"cell":"plan","item":"정책서","phase":"done","summary":"x"}')" >/dev/null
+out=$(run "$(j p2 Edit '{"file_path":"/tmp/a"}')")
+expect "첫 요청 알림 + 기록 있음(닫힘) + 첫 Edit → 없음" "$out" ""
+# 열린 구간이 있으면 첫 요청 알림 없음(재개한 세션 등)
+run "$(j p3 ${P}mark_work '{"cell":"impl","item":"x","phase":"start"}')" >/dev/null
+out=$(run "$(pr p3 '이어서')")
+expect "열린 구간 있음 + 요청 → 없음" "$out" ""
+# 첫 편집 알림을 이미 냈으면 요청 알림 없음
+run "$(j p4 Write '{"file_path":"/tmp/a"}')" >/dev/null
+out=$(run "$(pr p4 '다음')")
+expect "첫 편집 알림 뒤 요청 → 없음" "$out" ""
+# 요청 문장 안의 키 모양 문자열에 걸리지 않는다
+out=$(run "$(pr p5 'see \"tool_name\":\"Edit\" and \"session_id\":\"zzz\"')")
+expect "요청 문장 안의 tool_name 에 안 걸리고 첫 요청 알림" "$out" "other_sheets"
+[ -f "$STATE/p5.prompted" ] && expect "요청 문장 안의 session_id 에 안 걸림" ok ok || expect "요청 문장 안의 session_id 에 안 걸림" "$(ls "$STATE")" "__p5__"
+# 다른 이벤트 이름·도구 이름 없는 입력은 무시
+out=$(printf '{"session_id":"p6","hook_event_name":"Stop"}' | "$SH" "$HOOK")
+expect "도구 이름 없는 다른 이벤트 → 없음" "$out" ""
+out=$(printf '{\n  "session_id": "p7",\n  "hook_event_name": "UserPromptSubmit",\n  "prompt": "a\\nb"\n}\n' | "$SH" "$HOOK")
+expect "여러 줄 UserPromptSubmit JSON" "$out" "other_sheets"
+
 # 끄는 길
+out=$(printf '%s' "$(pr p8 '정책서')" | COFOUNDER_WORK_HOOK=off "$SH" "$HOOK")
+expect "COFOUNDER_WORK_HOOK=off + 요청 → 없음" "$out" ""
+out=$(printf '%s' "$(pr p8 '정책서')" | SPNV_EXECUTOR=intake "$SH" "$HOOK")
+expect "SPNV_EXECUTOR + 요청 → 없음" "$out" ""
+[ -f "$STATE/p8.prompted" ] && expect "끈 동안 요청 상태를 남기지 않음" "$(ls "$STATE")" "__없어야__" || expect "끈 동안 요청 상태를 남기지 않음" ok ok
 out=$(printf '%s' "$(j s8 Write '{"file_path":"/tmp/a"}')" | COFOUNDER_WORK_HOOK=off "$SH" "$HOOK")
 expect "COFOUNDER_WORK_HOOK=off → 없음" "$out" ""
 out=$(printf '%s' "$(j s8 ${P}claim_feature '{"feature_id":5}')" | SPNV_EXECUTOR=impl "$SH" "$HOOK")
