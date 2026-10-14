@@ -99,7 +99,7 @@ expect "Read(쓰기 아님) → 없음" "$out" ""
 # 4. 세션의 첫 요청(UserPromptSubmit) — Feature 1201
 out=$(run "$(pr p1 '배송 정책서를 써 주세요')")
 expect "첫 요청 → 시작 기록 알림" "$out" "mark_work(phase=start)"
-expect "첫 요청 알림에 other_sheets" "$out" "other_sheets"
+expect "첫 요청 알림에 my_map_works" "$out" "my_map_works"
 expect "첫 요청 알림에 질문만이면 넘어간다" "$out" "질문에 답하기만 하는 대화면 넘어갑니다"
 valid_prompt_json "$out" && expect "첫 요청 출력 형식(hookEventName=UserPromptSubmit)" ok ok || expect "첫 요청 출력 형식" "$out" "__형식불일치__"
 case "$out" in *—*) expect "첫 요청 알림에 엠대시 없음" "$out" "__엠대시__" ;; *) expect "첫 요청 알림에 엠대시 없음" ok ok ;; esac
@@ -129,13 +129,13 @@ out=$(run "$(pr p4 '다음')")
 expect "첫 편집 알림 뒤 요청 → 없음" "$out" ""
 # 요청 문장 안의 키 모양 문자열에 걸리지 않는다
 out=$(run "$(pr p5 'see \"tool_name\":\"Edit\" and \"session_id\":\"zzz\"')")
-expect "요청 문장 안의 tool_name 에 안 걸리고 첫 요청 알림" "$out" "other_sheets"
+expect "요청 문장 안의 tool_name 에 안 걸리고 첫 요청 알림" "$out" "my_map_works"
 [ -f "$STATE/p5.prompted" ] && expect "요청 문장 안의 session_id 에 안 걸림" ok ok || expect "요청 문장 안의 session_id 에 안 걸림" "$(ls "$STATE")" "__p5__"
 # 다른 이벤트 이름·도구 이름 없는 입력은 무시
 out=$(printf '{"session_id":"p6","hook_event_name":"Stop"}' | "$SH" "$HOOK")
 expect "도구 이름 없는 다른 이벤트 → 없음" "$out" ""
 out=$(printf '{\n  "session_id": "p7",\n  "hook_event_name": "UserPromptSubmit",\n  "prompt": "a\\nb"\n}\n' | "$SH" "$HOOK")
-expect "여러 줄 UserPromptSubmit JSON" "$out" "other_sheets"
+expect "여러 줄 UserPromptSubmit JSON" "$out" "my_map_works"
 
 # 끄는 길
 out=$(printf '%s' "$(pr p8 '정책서')" | COFOUNDER_WORK_HOOK=off "$SH" "$HOOK")

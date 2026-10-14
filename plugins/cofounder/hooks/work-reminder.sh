@@ -61,7 +61,7 @@ if [ "$event" = UserPromptSubmit ]; then
   [ -f "$nudged_f" ] && exit 0
   mkdir -p "$dir" 2>/dev/null || exit 0
   : > "$prompted_f" 2>/dev/null || exit 0
-  emit "이 세션에는 아직 업무 기록이 없습니다. 이 요청이 산출물을 만들거나 업무를 처리하는 일이면 업무 시작을 먼저 기록합니다: my_map_cells 로 칸을 고르고 mark_work(phase=start) 를 부릅니다. 지도가 여러 장이면 응답의 other_sheets 로 다른 지도도 봅니다. 질문에 답하기만 하는 대화면 넘어갑니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
+  emit "이 세션에는 아직 업무 기록이 없습니다. 이 요청이 산출물을 만들거나 업무를 처리하는 일이면 업무 시작을 먼저 기록합니다: my_map_works 로 맞는 업무를 고르고 my_map_cells(map_slug, work) 로 칸을 고른 뒤 mark_work(phase=start) 를 부릅니다. 질문에 답하기만 하는 대화면 넘어갑니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
   exit 0
 fi
 
@@ -79,7 +79,7 @@ case "$tool" in
   *__claim_feature)
     fid=$(printf '%s' "$ti" | sed -n 's/.*"feature_id"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\).*/\1/p')
     [ -n "$fid" ] || fid='<과제 번호>'
-    emit "과제 ${fid} 를 선점했습니다. 작업에 들어가기 전에 업무 시작을 기록합니다 — my_map_cells 로 칸을 확인하고 mark_work(phase=start, cell=<칸 키>, item=feature:${fid}) 를 부릅니다. 다른 일감의 구간이 열려 있으면 그 구간을 먼저 끝냅니다(cofounder-work 스킬)."
+    emit "과제 ${fid} 를 선점했습니다. 작업에 들어가기 전에 업무 시작을 기록합니다 — my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 확인하고 mark_work(phase=start, cell=<칸 키>, item=feature:${fid}) 를 부릅니다. 다른 일감의 구간이 열려 있으면 그 구간을 먼저 끝냅니다(cofounder-work 스킬)."
     exit 0
     ;;
   *__update_feature)
@@ -98,12 +98,12 @@ case "$tool" in
       [ -f "$marked_f" ] && exit 0
       mkdir -p "$dir" 2>/dev/null || exit 0
       : > "$nudged_f" 2>/dev/null || exit 0
-      emit "첫 요청 때 안내한 업무 시작 기록이 아직 없습니다. 지금 작업이 산출물을 만드는 일이면 my_map_cells 로 칸을 고르고 mark_work(phase=start) 를 부릅니다. 산출물 작업이 아니면 넘어갑니다. 이 안내는 다시 나오지 않습니다(cofounder-work 스킬)."
+      emit "첫 요청 때 안내한 업무 시작 기록이 아직 없습니다. 지금 작업이 산출물을 만드는 일이면 my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고르고 mark_work(phase=start) 를 부릅니다. 산출물 작업이 아니면 넘어갑니다. 이 안내는 다시 나오지 않습니다(cofounder-work 스킬)."
       exit 0
     fi
     mkdir -p "$dir" 2>/dev/null || exit 0
     : > "$nudged_f" 2>/dev/null || exit 0
-    emit "이 세션에는 열린 업무 구간이 없습니다. 지금 작업이 산출물을 만드는 일이면 업무 시작을 먼저 기록합니다 — my_map_cells 로 칸을 고르고 mark_work(phase=start) 를 부릅니다. 산출물 작업이 아니면 넘어갑니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
+    emit "이 세션에는 열린 업무 구간이 없습니다. 지금 작업이 산출물을 만드는 일이면 업무 시작을 먼저 기록합니다 — my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고르고 mark_work(phase=start) 를 부릅니다. 산출물 작업이 아니면 넘어갑니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
     exit 0
     ;;
 esac

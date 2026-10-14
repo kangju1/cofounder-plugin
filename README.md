@@ -32,8 +32,8 @@ claude plugin install cofounder@jengablock
 
 | 언제 | 조건 | 알림 |
 |---|---|---|
-| 세션의 첫 요청(`UserPromptSubmit`) | 열린 구간이 없고, 이 세션에 아직 알림을 내지 않았을 때. 세션당 한 번 | 산출물을 만들거나 업무를 처리하는 요청이면 업무 시작을 먼저 기록합니다(`my_map_cells` 로 칸 고르기, 지도가 여러 장이면 `other_sheets` 로 다른 지도도 보기). 질문에 답하기만 하는 대화면 넘어갑니다 |
-| 과제 선점(`claim_feature`) 직후 | 늘 | 이 과제의 업무 시작을 기록합니다(`my_map_cells` → `mark_work start`, `item=feature:<번호>`) |
+| 세션의 첫 요청(`UserPromptSubmit`) | 열린 구간이 없고, 이 세션에 아직 알림을 내지 않았을 때. 세션당 한 번 | 산출물을 만들거나 업무를 처리하는 요청이면 업무 시작을 먼저 기록합니다(`my_map_works` 로 업무 → `my_map_cells(map_slug, work)` 로 칸 고르기). 질문에 답하기만 하는 대화면 넘어갑니다 |
+| 과제 선점(`claim_feature`) 직후 | 늘 | 이 과제의 업무 시작을 기록합니다(`my_map_works` → `my_map_cells` → `mark_work start`, `item=feature:<번호>`) |
 | 과제 완료(`update_feature` 의 `status=done`) 직후 | 이 세션에 열린 업무 구간이 있을 때 | 판단 요지·산출물과 함께 업무 끝을 기록합니다(`mark_work done`) |
 | 파일 수정(Edit·Write·MultiEdit·NotebookEdit)·문서 작성(`create_document`·`update_document`) 직후 | 열린 구간이 없을 때, 세션당 한 번. 첫 요청 알림을 냈고 그 뒤 `mark_work` 가 한 번이라도 있었으면 생략 | 산출물 작업이면 업무 시작을 기록합니다. 첫 요청 알림 뒤라면 「첫 요청 때 안내한 업무 시작 기록이 아직 없습니다」로 시작합니다 |
 
