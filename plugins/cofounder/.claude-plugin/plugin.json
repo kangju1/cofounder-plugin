@@ -1,7 +1,7 @@
 {
   "name": "cofounder",
   "description": "코파운더 연결과 업무 지도 기록 — 설치하면 코파운더에 로그인해 연결되고, /cofounder:cofounder-setup 한 번으로 사용량 수집이 켜지며, 기획서·정책서·코드 작업이 조직의 업무 지도에 기록됩니다.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "author": {
     "name": "젠가블록",
     "email": "tech@jengablock.com"
