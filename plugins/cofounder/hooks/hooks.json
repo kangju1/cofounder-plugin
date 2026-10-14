@@ -1,0 +1,17 @@
+{
+  "description": "업무 기록 알림 — 과제 선점·완료와 세션의 첫 산출물 작업 직후 업무 지도 기록(mark_work)을 알린다. 막지 않는다. 끄기: COFOUNDER_WORK_HOOK=off",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|mcp__(spnv-platform|plugin_cofounder_cofounder)__(claim_feature|update_feature|mark_work|create_document|update_document))$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/work-reminder.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
