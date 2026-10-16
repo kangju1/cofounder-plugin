@@ -1,5 +1,5 @@
 {
-  "description": "업무 기록 알림 — 세션의 첫 요청, 과제 선점·완료, 세션의 첫 산출물 작업 직후 업무 지도 기록(mark_work)을 알린다. 막지 않는다. 끄기: COFOUNDER_WORK_HOOK=off",
+  "description": "업무 기록 알림과 턴 끝 관문 — 세션의 첫 요청, 과제 선점·완료, 세션의 첫 산출물 작업 직후 업무 지도 기록(mark_work)을 알리고, 도구를 쓰고도 기록 없이 끝나려는 턴은 한 번 돌려보낸다(사람의 입력은 막지 않는다). 끄기: COFOUNDER_WORK_HOOK=off",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -20,6 +20,17 @@
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/work-reminder.sh\"",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/turn-gate.sh\"",
+            "timeout": 30
           }
         ]
       }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# 업무 기록 알림 훅(plugins/cofounder/hooks/work-reminder.sh) 단위 시험 — 플랫폼 Feature 1197·1201.
+# 업무 기록 알림 훅(plugins/cofounder/hooks/work-reminder.sh) 단위 시험 — 플랫폼 Feature 1197·1201·1223.
 # 쓰는 법: sh claude-plugin/tests/work-reminder.test.sh   (dash 로도: dash claude-plugin/tests/work-reminder.test.sh)
 # 표본 stdin JSON 을 넣고 추가 문맥 출력이 기대대로인지 본다. 상태 파일은 임시 폴더에만 쓴다.
 set -u
@@ -50,6 +50,8 @@ S=mcp__spnv-platform__
 # 1. claim_feature — 두 연결 이름 모두, 과제 번호가 item 에 들어간다
 out=$(run "$(j s1 ${P}claim_feature '{"feature_id":1197,"holder":"session:s1"}' '{"id":1197,"status":"active","claimed":true}')")
 expect "claim(플러그인 이름) 알림" "$out" "item=feature:1197"
+expect "claim 알림은 턴 선언" "$out" "mark_work(phase=turn"
+expect "claim 알림에 from_request" "$out" "from_request"
 valid_json "$out" && expect "claim 출력 형식" ok ok || expect "claim 출력 형식" "$out" "__형식불일치__"
 out=$(run "$(j s1 ${S}claim_feature '{"feature_id": 42, "holder": "session:s1"}')")
 expect "claim(spnv-platform 이름) 알림" "$out" "item=feature:42"
@@ -81,14 +83,14 @@ expect "mark_work blocked 뒤 update_feature done → 없음" "$out" ""
 
 # 3. 첫 쓰기 — 세션당 한 번
 out=$(run "$(j s3 Write '{"file_path":"/tmp/a.md","content":"x"}' '{"filePath":"/tmp/a.md","type":"create"}')")
-expect "첫 Write → 시작 기록 알림" "$out" "mark_work(phase=start)"
+expect "첫 Write → 시작 기록 알림" "$out" "mark_work(phase=turn)"
 valid_json "$out" && expect "첫 Write 출력 형식" ok ok || expect "첫 Write 출력 형식" "$out" "__형식불일치__"
 out=$(run "$(j s3 Edit '{"file_path":"/tmp/a.md"}')")
 expect "두 번째 Edit → 없음" "$out" ""
 out=$(run "$(j s3 ${P}create_document '{"path":"x"}')")
 expect "같은 세션 create_document → 없음" "$out" ""
 out=$(run "$(j s4 ${S}update_document '{"id_or_path":"x","body":"y"}')")
-expect "다른 세션 첫 update_document → 알림" "$out" "mark_work(phase=start)"
+expect "다른 세션 첫 update_document → 알림" "$out" "mark_work(phase=turn)"
 out=$(run "$(j s5 MultiEdit '{"file_path":"/tmp/b"}')")
 expect "MultiEdit 첫 회 → 알림" "$out" "열린 업무 구간이 없습니다"
 out=$(run "$(j s6 NotebookEdit '{"notebook_path":"/tmp/n.ipynb"}')")
@@ -98,7 +100,7 @@ expect "Read(쓰기 아님) → 없음" "$out" ""
 
 # 4. 세션의 첫 요청(UserPromptSubmit) — Feature 1201
 out=$(run "$(pr p1 '배송 정책서를 써 주세요')")
-expect "첫 요청 → 시작 기록 알림" "$out" "mark_work(phase=start)"
+expect "첫 요청 → 시작 기록 알림" "$out" "mark_work(phase=turn)"
 expect "첫 요청 알림에 my_map_works" "$out" "my_map_works"
 expect "첫 요청 알림에 질문만이면 넘어간다" "$out" "질문에 답하기만 하는 대화면 넘어갑니다"
 valid_prompt_json "$out" && expect "첫 요청 출력 형식(hookEventName=UserPromptSubmit)" ok ok || expect "첫 요청 출력 형식" "$out" "__형식불일치__"
@@ -107,7 +109,7 @@ out=$(run "$(pr p1 '하나 더')")
 expect "두 번째 요청 → 없음" "$out" ""
 # 첫 요청 알림 뒤 기록이 없으면 첫 편집 때 한 번 더(문장이 다르다), 그 뒤로는 없음
 out=$(run "$(j p1 Edit '{"file_path":"/tmp/a"}')")
-expect "첫 요청 알림 + 기록 없음 + 첫 Edit → 다시 알림" "$out" "첫 요청 때 안내한 업무 시작 기록이 아직 없습니다"
+expect "첫 요청 알림 + 기록 없음 + 첫 Edit → 다시 알림" "$out" "첫 요청 때 안내한 업무 기록이 아직 없습니다"
 valid_json "$out" && expect "다시 알림 출력 형식(PostToolUse)" ok ok || expect "다시 알림 출력 형식" "$out" "__형식불일치__"
 out=$(run "$(j p1 Write '{"file_path":"/tmp/b"}')")
 expect "그다음 Write → 없음" "$out" ""
@@ -119,6 +121,12 @@ run "$(j p2 ${P}mark_work '{"cell":"plan","item":"정책서","phase":"start"}')"
 run "$(j p2 ${S}mark_work '{"cell":"plan","item":"정책서","phase":"done","summary":"x"}')" >/dev/null
 out=$(run "$(j p2 Edit '{"file_path":"/tmp/a"}')")
 expect "첫 요청 알림 + 기록 있음(닫힘) + 첫 Edit → 없음" "$out" ""
+# 턴 선언은 구간을 열지 않는다 — 기록 있음만 남아 첫 편집 알림 생략
+run "$(pr p9 '정책서')" >/dev/null
+run "$(j p9 ${P}mark_work '{"cell":"plan","item":"정책서","phase":"turn","summary":"x"}')" >/dev/null
+out=$(run "$(j p9 Edit '{"file_path":"/tmp/a"}')")
+expect "첫 요청 알림 + turn 기록 + 첫 Edit → 없음" "$out" ""
+[ -f "$STATE/p9.open" ] && expect "turn 은 열린 구간을 남기지 않음" "$(ls "$STATE")" "__open__" || expect "turn 은 열린 구간을 남기지 않음" ok ok
 # 열린 구간이 있으면 첫 요청 알림 없음(재개한 세션 등)
 run "$(j p3 ${P}mark_work '{"cell":"impl","item":"x","phase":"start"}')" >/dev/null
 out=$(run "$(pr p3 '이어서')")

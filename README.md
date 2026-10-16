@@ -20,8 +20,9 @@ claude plugin install cofounder@jengablock
 |---|---|
 | MCP 서버 `cofounder` | `https://cofounder-api.jengablock.com/mcp/` 원격 연결(OAuth 로그인) |
 | 스킬 `cofounder-setup` | 수집 토큰을 받아 사용자 설정(`~/.claude/settings.json`)의 `env` 에 수집 설정 일곱 줄을 넣습니다. 기존 설정은 그대로 두고 바꾸기 전 파일을 남깁니다 |
-| 스킬 `cofounder-work` | 산출물 작업을 시작·끝낼 때 업무 지도의 칸에 기록하고, 끝낼 때 판단 요지와 산출물 위치를 남깁니다 |
+| 스킬 `cofounder-work` | 요청 하나를 마치기 전에 그 요청에서 한 일을 업무 지도의 칸에 선언하고(턴 선언), 판단 요지와 산출물 위치를 남깁니다 |
 | 훅 `hooks/hooks.json` → `hooks/work-reminder.sh` | 업무 기록 알림. 세션의 첫 요청과 도구 호출 직후 Claude 에게 기록할 때라고 한 줄 알립니다. 작업을 막지 않고 서버를 부르지 않습니다 |
+| 훅 `hooks/hooks.json` → `hooks/turn-gate.sh` | 턴 끝 관문(Stop). 도구를 쓰고도 업무 기록 없이 끝나려는 Claude 의 턴을 한 번 돌려보냅니다. 사람의 입력은 막지 않고 서버를 부르지 않습니다 |
 
 ## 업무 기록 알림 훅
 
@@ -55,6 +56,26 @@ claude plugin install cofounder@jengablock
   한 번만 나옵니다.
 - **끄기**: 환경 변수 `COFOUNDER_WORK_HOOK=off`(예: 사용자 설정 `env` 에 넣기). `SPNV_EXECUTOR` 가 설정된
   세션(타이머·이벤트 실행기)에서도 아무것도 내지 않습니다.
+
+## 턴 끝 관문
+
+알림만으로는 기록이 빠지는 턴이 남았습니다(2026-10-16 실측: 조사·코드 수정·배포·접수까지 한 세션의 업무 기록
+0건). 그래서 Claude 가 답을 마치려는 순간(`Stop` 훅) 그 턴을 봅니다. **막는 대상은 사람이 아니라 AI 의 턴입니다** —
+사용자가 할 일은 없고, Claude 가 `mark_work` 를 한 번 부르면 끝납니다.
+
+| 그 턴에서 | 결과 |
+|---|---|
+| 도구를 쓰지 않았다(답만 했다) | 통과 |
+| 도구를 썼고 `mark_work` 도 불렀다 | 통과 |
+| 도구를 썼는데 `mark_work` 가 없다 | 한 번 돌려보냅니다(`{"decision":"block","reason":…}`) — `mark_work(phase="turn")` 또는 `no_fitting_cell=true` 로 기록하라고 |
+| 이미 한 번 돌려보낸 턴(`stop_hook_active=true`) | 통과 — 같은 턴을 두 번 막지 않습니다 |
+
+- 턴은 Stop 입력의 `transcript_path`(대화 기록 JSONL)에서 마지막 「진짜 사용자 요청」(도구 결과가 아닌 user
+  메시지) 이후로 봅니다. 하위 에이전트 줄(`isSidechain:true`)은 보지 않습니다.
+- 앞 턴의 기록을 다음 턴으로 이어 쓰지 않습니다. 어느 칸의 일인지 도구 이름으로 짐작하지도 않습니다.
+- 기록 파일을 읽을 수 없거나 입력이 이상하면 통과합니다. 종료 코드는 늘 0 입니다.
+- **끄기**: `COFOUNDER_WORK_HOOK=off`. `SPNV_EXECUTOR` 가 설정된 세션에서도 보지 않습니다.
+- 셸은 `sed`·`awk`·`tr` 만 씁니다.
 
 ### 실행 환경
 
@@ -99,8 +120,8 @@ claude plugin install cofounder@jengablock
 **이 플러그인이 켜진 세션**의 사용량만 받습니다. 업무 지도에 남길 프로젝트에서만 쓰려면 그 프로젝트 범위로
 설치합니다(`claude plugin install cofounder@jengablock --scope project`).
 
-어느 쪽이든 `cofounder-work` 의 시작~끝 기록 사이에 든 사용량만 그 칸·일감에 집계됩니다. 기록 밖의 사용량은
-집계하지 않습니다.
+어느 쪽이든 `cofounder-work` 의 턴 선언이 덮는 요청, 또는 시작~끝 기록 사이에 든 사용량만 그 칸·일감에
+집계됩니다. 기록 밖의 사용량은 집계하지 않습니다.
 
 ## 개발
 
@@ -112,6 +133,7 @@ claude plugin install cofounder@jengablock
 claude plugin validate ./claude-plugin
 claude plugin validate ./claude-plugin/plugins/cofounder --strict
 sh claude-plugin/tests/work-reminder.test.sh   # 알림 훅 단위 시험
+sh claude-plugin/tests/turn-gate.test.sh       # 턴 끝 관문 단위 시험
 ```
 
 마켓플레이스 이름 `jengablock`, 플러그인 이름 `cofounder`. 스킬은 `/cofounder:<스킬>` 로 부릅니다.
