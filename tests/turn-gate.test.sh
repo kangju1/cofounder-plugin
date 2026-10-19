@@ -1,5 +1,5 @@
 #!/bin/sh
-# 턴 끝 관문 훅(plugins/cofounder/hooks/turn-gate.sh) 단위 시험 — 플랫폼 Feature 1223.
+# 턴 끝 관문 훅(plugins/cofounder/hooks/turn-gate.sh) 단위 시험 — 플랫폼 Feature 1223·1262.
 # 쓰는 법: sh claude-plugin/tests/turn-gate.test.sh   (dash 로도: dash claude-plugin/tests/turn-gate.test.sh)
 # 표본 대화 기록(JSONL)과 Stop 입력 JSON 을 넣고 막는지(block) 통과하는지 본다. 파일은 임시 폴더에만 쓴다.
 set -u
@@ -54,6 +54,8 @@ out=$(stop "$f")
 expect "도구를 쓰고 기록 없음 → 막음" "$out" '"decision":"block"'
 expect "막을 때 mark_work turn 안내" "$out" 'mark_work(phase=\"turn\"'
 expect "막을 때 no_fitting_cell 안내" "$out" "no_fitting_cell=true"
+expect "막을 때 업무가 바뀐 자리에서 선언 안내(Feature 1262)" "$out" "업무가 바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막 업무를 남깁니다"
+expect "막을 때 서버가 호출 순서대로 나눠 받는다는 근거" "$out" "호출 순서대로 나눠 받아"
 case "$out" in *—*) expect "안내에 엠대시 없음" "$out" "__엠대시__" ;; *) expect "안내에 엠대시 없음" ok ok ;; esac
 case "$out" in '{"decision":"block","reason":"'*'"}') expect "출력 형식" ok ok ;; *) expect "출력 형식" "$out" "__형식불일치__" ;; esac
 

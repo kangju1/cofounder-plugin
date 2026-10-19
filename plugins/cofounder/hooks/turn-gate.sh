@@ -14,6 +14,9 @@
 #   stop_hook_active=true(이미 한 번 돌려보낸 턴) → 통과 — 같은 턴을 두 번 막지 않는다
 #
 # 흔적(도구 이름)으로 업무를 짐작하지 않는다 — 어느 칸의 일인지는 Claude 가 선언한다.
+# 판정은 선언이 하나라도 있으면 통과다. 업무가 바뀐 자리에서 선언하라는 것(Feature 1262)은 돌려보내는
+# 문구로만 알린다 — 서버는 한 요청의 선언들을 호출 순서대로 나눠 받으므로, 끝에서 몰아 부른 선언은
+# 업무별로 나뉘지 않는다.
 # 앞 턴의 선언을 다음 턴으로 이어 쓰지 않는다 — 턴마다 본다.
 #
 # 런타임 요구 없음: POSIX sh 와 기본 도구(sed·awk)만 쓴다. jq·Python·Node 를 쓰지 않는다.
@@ -58,5 +61,5 @@ case "$verdict" in
   *) exit 0 ;;
 esac
 
-printf '%s\n' '{"decision":"block","reason":"이 턴에서 도구를 썼는데 업무 기록이 없습니다. 답을 마치기 전에 이 요청에서 한 일을 mark_work(phase=\"turn\", cell=<칸 키>, item=<일감>, summary=<무엇을 근거로 어떻게 정했는지 한두 줄>, evidence=[<산출물 경로·링크>]) 로 남깁니다. 칸은 my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고릅니다. 맞는 칸이 없으면 cell 대신 no_fitting_cell=true 를 줍니다. 한 요청에서 업무를 여럿 했으면 업무마다 부릅니다. 기록한 뒤 답을 마칩니다(cofounder-work 스킬)."}'
+printf '%s\n' '{"decision":"block","reason":"이 턴에서 도구를 썼는데 업무 기록이 없습니다. 답을 마치기 전에 이 요청에서 한 일을 mark_work(phase=\"turn\", cell=<칸 키>, item=<일감>, summary=<무엇을 근거로 어떻게 정했는지 한두 줄>, evidence=[<산출물 경로·링크>]) 로 남깁니다. 칸은 my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고릅니다. 맞는 칸이 없으면 cell 대신 no_fitting_cell=true 를 줍니다. 서버는 한 요청의 선언들을 호출 순서대로 나눠 받아 각 선언에 앞 선언 뒤부터 그 호출까지를 붙이므로, 지금 남기는 선언은 이 요청 전체를 덮습니다. 업무별로 나누려면 다음 요청부터 업무가 바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막 업무를 남깁니다. 기록한 뒤 답을 마칩니다(cofounder-work 스킬)."}'
 exit 0

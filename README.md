@@ -20,7 +20,7 @@ claude plugin install cofounder@jengablock
 |---|---|
 | MCP 서버 `cofounder` | `https://cofounder-api.jengablock.com/mcp/` 원격 연결(OAuth 로그인) |
 | 스킬 `cofounder-setup` | 수집 토큰을 받아 사용자 설정(`~/.claude/settings.json`)의 `env` 에 수집 설정 일곱 줄을 넣습니다. 기존 설정은 그대로 두고 바꾸기 전 파일을 남깁니다 |
-| 스킬 `cofounder-work` | 요청 하나를 마치기 전에 그 요청에서 한 일을 업무 지도의 칸에 선언하고(턴 선언), 판단 요지와 산출물 위치를 남깁니다 |
+| 스킬 `cofounder-work` | 요청에서 한 일을 업무 지도의 칸에 선언하고(턴 선언), 판단 요지와 산출물 위치를 남깁니다. 한 요청 안에서 업무가 바뀌면 바뀐 그 자리에서 앞 업무를, 요청을 마칠 때 마지막 업무를 선언합니다 |
 | 훅 `hooks/hooks.json` → `hooks/work-reminder.sh` | 업무 기록 알림. 세션의 첫 요청과 도구 호출 직후 Claude 에게 기록할 때라고 한 줄 알립니다. 작업을 막지 않고 서버를 부르지 않습니다 |
 | 훅 `hooks/hooks.json` → `hooks/turn-gate.sh` | 턴 끝 관문(Stop). 도구를 쓰고도 업무 기록 없이 끝나려는 Claude 의 턴을 한 번 돌려보냅니다. 사람의 입력은 막지 않고 서버를 부르지 않습니다 |
 
@@ -33,8 +33,8 @@ claude plugin install cofounder@jengablock
 
 | 언제 | 조건 | 알림 |
 |---|---|---|
-| 세션의 첫 요청(`UserPromptSubmit`) | 열린 구간이 없고, 이 세션에 아직 알림을 내지 않았을 때. 세션당 한 번 | 산출물을 만들거나 업무를 처리하는 요청이면 업무 시작을 먼저 기록합니다(`my_map_works` 로 업무 → `my_map_cells(map_slug, work)` 로 칸 고르기). 질문에 답하기만 하는 대화면 넘어갑니다 |
-| 과제 선점(`claim_feature`) 직후 | 늘 | 이 과제의 업무 시작을 기록합니다(`my_map_works` → `my_map_cells` → `mark_work start`, `item=feature:<번호>`) |
+| 세션의 첫 요청(`UserPromptSubmit`) | 열린 구간이 없고, 이 세션에 아직 알림을 내지 않았을 때. 세션당 한 번 | 도구를 쓰면 한 일을 턴 선언(`mark_work(phase=turn)`)으로 남깁니다. 업무가 바뀌면 바뀐 그 자리에서 앞 업무를, 요청을 마칠 때 마지막 업무를 남깁니다(`my_map_works` 로 업무 → `my_map_cells(map_slug, work)` 로 칸 고르기). 질문에 답하기만 하는 대화면 넘어갑니다 |
+| 과제 선점(`claim_feature`) 직후 | 늘 | 선점 전까지 다른 업무(요청 접수 등)를 했으면 지금 그 업무를 턴 선언으로 남기고, 이 과제의 일은 업무가 바뀌는 자리나 요청 끝에서 `item=feature:<번호>` 로 남깁니다 |
 | 과제 완료(`update_feature` 의 `status=done`) 직후 | 이 세션에 열린 업무 구간이 있을 때 | 판단 요지·산출물과 함께 업무 끝을 기록합니다(`mark_work done`) |
 | 파일 수정(Edit·Write·MultiEdit·NotebookEdit)·문서 작성(`create_document`·`update_document`) 직후 | 열린 구간이 없을 때, 세션당 한 번. 첫 요청 알림을 냈고 그 뒤 `mark_work` 가 한 번이라도 있었으면 생략 | 산출물 작업이면 업무 시작을 기록합니다. 첫 요청 알림 뒤라면 「첫 요청 때 안내한 업무 시작 기록이 아직 없습니다」로 시작합니다 |
 
@@ -73,6 +73,8 @@ claude plugin install cofounder@jengablock
 - 턴은 Stop 입력의 `transcript_path`(대화 기록 JSONL)에서 마지막 「진짜 사용자 요청」(도구 결과가 아닌 user
   메시지) 이후로 봅니다. 하위 에이전트 줄(`isSidechain:true`)은 보지 않습니다.
 - 앞 턴의 기록을 다음 턴으로 이어 쓰지 않습니다. 어느 칸의 일인지 도구 이름으로 짐작하지도 않습니다.
+- 판정은 기록이 하나라도 있으면 통과입니다. 돌려보낼 때는 업무가 바뀐 자리에서 기록하라고 함께 알립니다 —
+  서버가 한 요청의 턴 선언들을 호출 순서대로 나눠 받으므로, 끝에서 몰아 남긴 기록 하나는 그 요청 전체를 덮습니다.
 - 기록 파일을 읽을 수 없거나 입력이 이상하면 통과합니다. 종료 코드는 늘 0 입니다.
 - **끄기**: `COFOUNDER_WORK_HOOK=off`. `SPNV_EXECUTOR` 가 설정된 세션에서도 보지 않습니다.
 - 셸은 `sed`·`awk`·`tr` 만 씁니다.

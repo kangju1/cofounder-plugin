@@ -1,9 +1,10 @@
 #!/bin/sh
 # 업무 기록 알림 — UserPromptSubmit·PostToolUse 훅(막지 않는다). 플랫폼 Feature 1197·1201·1223.
 #
-# 기록의 기본은 턴 선언이다(Feature 1223): 요청 하나를 마치기 전에 그 요청에서 한 일을
-# mark_work(phase=turn) 으로 남긴다. 이 훅은 그것을 미리 알리고, 빠뜨린 턴은 턴 끝 관문
-# (turn-gate.sh, Stop 훅)이 한 번 돌려보낸다.
+# 기록의 기본은 턴 선언이다(Feature 1223): 그 요청에서 한 일을 mark_work(phase=turn) 으로
+# 남긴다. 한 요청 안에서 업무가 바뀌면 바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막
+# 업무를 남긴다(Feature 1262) — 서버가 한 요청의 턴 선언들을 호출 순서대로 나눠 받기 때문이다.
+# 이 훅은 그것을 미리 알리고, 빠뜨린 턴은 턴 끝 관문(turn-gate.sh, Stop 훅)이 한 번 돌려보낸다.
 #
 # 요청 하나가 들어온 직후, 또는 도구 호출 하나가 끝난 직후 stdin 으로 그 JSON 을 받아, 업무 기록
 # (mark_work)을 할 때면 추가 문맥(additionalContext) 한 줄을 낸다. 서버를 부르지 않는다.
@@ -66,7 +67,7 @@ if [ "$event" = UserPromptSubmit ]; then
   [ -f "$nudged_f" ] && exit 0
   mkdir -p "$dir" 2>/dev/null || exit 0
   : > "$prompted_f" 2>/dev/null || exit 0
-  emit "이 세션에는 아직 업무 기록이 없습니다. 이 요청을 처리하며 도구를 쓰면, 답을 마치기 전에 이 요청에서 한 일을 mark_work(phase=turn) 으로 남깁니다: my_map_works 로 맞는 업무를 고르고 my_map_cells(map_slug, work) 로 칸을 고릅니다. 맞는 칸이 없으면 cell 대신 no_fitting_cell=true 를 줍니다. 도구 없이 질문에 답하기만 하는 대화면 넘어갑니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
+  emit "이 세션에는 아직 업무 기록이 없습니다. 이 요청을 처리하며 도구를 쓰면 한 일을 mark_work(phase=turn) 으로 남깁니다. 한 요청 안에서 업무가 바뀌면(예: 요청 접수를 마치고 구현을 시작할 때) 바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막 업무를 남깁니다. 서버는 한 요청의 선언들을 호출 순서대로 나눠 받아, 각 선언에 앞 선언 뒤부터 그 호출까지를 붙입니다. my_map_works 로 맞는 업무를 고르고 my_map_cells(map_slug, work) 로 칸을 고릅니다. 맞는 칸이 없으면 cell 대신 no_fitting_cell=true 를 줍니다. 도구 없이 질문에 답하기만 하는 대화면 넘어갑니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
   exit 0
 fi
 
@@ -84,7 +85,7 @@ case "$tool" in
   *__claim_feature)
     fid=$(printf '%s' "$ti" | sed -n 's/.*"feature_id"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\).*/\1/p')
     [ -n "$fid" ] || fid='<과제 번호>'
-    emit "과제 ${fid} 를 선점했습니다. 이 요청을 마치기 전에 이 과제에서 한 일을 mark_work(phase=turn, cell=<칸 키>, item=feature:${fid}) 로 남깁니다. my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 확인합니다. 이 과제를 앞 요청부터 하고 있었으면 claim_feature 의 from_request 로 몇 번째 요청부터였는지 알릴 수 있습니다(cofounder-work 스킬)."
+    emit "과제 ${fid} 를 선점했습니다. 이 요청에서 선점 전까지 다른 업무(요청 접수 등)를 했으면 지금 그 업무를 mark_work(phase=turn) 으로 남기고 다음 업무를 시작합니다. 이 과제에서 한 일은 업무가 바뀌는 자리나 요청을 마칠 때 mark_work(phase=turn, cell=<칸 키>, item=feature:${fid}) 로 남깁니다. my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 확인합니다. 이 과제를 앞 요청부터 하고 있었으면 claim_feature 의 from_request 로 몇 번째 요청부터였는지 알릴 수 있습니다(cofounder-work 스킬)."
     exit 0
     ;;
   *__update_feature)
@@ -103,12 +104,12 @@ case "$tool" in
       [ -f "$marked_f" ] && exit 0
       mkdir -p "$dir" 2>/dev/null || exit 0
       : > "$nudged_f" 2>/dev/null || exit 0
-      emit "첫 요청 때 안내한 업무 기록이 아직 없습니다. 이 요청을 마치기 전에 한 일을 mark_work(phase=turn) 으로 남깁니다. my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고르고, 맞는 칸이 없으면 no_fitting_cell=true 를 줍니다. 이 안내는 다시 나오지 않습니다(cofounder-work 스킬)."
+      emit "첫 요청 때 안내한 업무 기록이 아직 없습니다. 한 일을 mark_work(phase=turn) 으로 남깁니다. 이 요청 안에서 업무가 바뀌면 바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막 업무를 남깁니다. my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고르고, 맞는 칸이 없으면 no_fitting_cell=true 를 줍니다. 이 안내는 다시 나오지 않습니다(cofounder-work 스킬)."
       exit 0
     fi
     mkdir -p "$dir" 2>/dev/null || exit 0
     : > "$nudged_f" 2>/dev/null || exit 0
-    emit "이 세션에는 열린 업무 구간이 없습니다. 이 요청을 마치기 전에 한 일을 mark_work(phase=turn) 으로 남깁니다. my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고르고, 맞는 칸이 없으면 no_fitting_cell=true 를 줍니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
+    emit "이 세션에는 열린 업무 구간이 없습니다. 한 일을 mark_work(phase=turn) 으로 남깁니다. 이 요청 안에서 업무가 바뀌면 바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막 업무를 남깁니다. my_map_works 로 업무를, my_map_cells(map_slug, work) 로 칸을 고르고, 맞는 칸이 없으면 no_fitting_cell=true 를 줍니다. 이 안내는 세션에 한 번만 나옵니다(cofounder-work 스킬)."
     exit 0
     ;;
 esac

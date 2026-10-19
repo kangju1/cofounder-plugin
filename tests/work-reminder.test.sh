@@ -52,6 +52,8 @@ out=$(run "$(j s1 ${P}claim_feature '{"feature_id":1197,"holder":"session:s1"}' 
 expect "claim(플러그인 이름) 알림" "$out" "item=feature:1197"
 expect "claim 알림은 턴 선언" "$out" "mark_work(phase=turn"
 expect "claim 알림에 from_request" "$out" "from_request"
+expect "claim 알림은 선점 전 업무를 지금 남기라고(Feature 1262)" "$out" "선점 전까지 다른 업무(요청 접수 등)를 했으면 지금 그 업무를"
+case "$out" in *—*) expect "claim 알림에 엠대시 없음" "$out" "__엠대시__" ;; *) expect "claim 알림에 엠대시 없음" ok ok ;; esac
 valid_json "$out" && expect "claim 출력 형식" ok ok || expect "claim 출력 형식" "$out" "__형식불일치__"
 out=$(run "$(j s1 ${S}claim_feature '{"feature_id": 42, "holder": "session:s1"}')")
 expect "claim(spnv-platform 이름) 알림" "$out" "item=feature:42"
@@ -103,6 +105,8 @@ out=$(run "$(pr p1 '배송 정책서를 써 주세요')")
 expect "첫 요청 → 시작 기록 알림" "$out" "mark_work(phase=turn)"
 expect "첫 요청 알림에 my_map_works" "$out" "my_map_works"
 expect "첫 요청 알림에 질문만이면 넘어간다" "$out" "질문에 답하기만 하는 대화면 넘어갑니다"
+expect "첫 요청 알림: 업무가 바뀐 자리에서 앞 업무(Feature 1262)" "$out" "바뀐 그 자리에서 앞 업무를 남기고, 요청을 마칠 때 마지막 업무를 남깁니다"
+expect "첫 요청 알림: 서버가 호출 순서대로 나눠 받는다" "$out" "호출 순서대로 나눠 받아"
 valid_prompt_json "$out" && expect "첫 요청 출력 형식(hookEventName=UserPromptSubmit)" ok ok || expect "첫 요청 출력 형식" "$out" "__형식불일치__"
 case "$out" in *—*) expect "첫 요청 알림에 엠대시 없음" "$out" "__엠대시__" ;; *) expect "첫 요청 알림에 엠대시 없음" ok ok ;; esac
 out=$(run "$(pr p1 '하나 더')")
