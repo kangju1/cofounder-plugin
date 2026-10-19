@@ -23,6 +23,7 @@ claude plugin install cofounder@jengablock
 | 스킬 `cofounder-work` | 요청에서 한 일을 업무 지도의 칸에 선언하고(턴 선언), 판단 요지와 산출물 위치를 남깁니다. 한 요청 안에서 업무가 바뀌면 바뀐 그 자리에서 앞 업무를, 요청을 마칠 때 마지막 업무를 선언합니다 |
 | 훅 `hooks/hooks.json` → `hooks/work-reminder.sh` | 업무 기록 알림. 세션의 첫 요청과 도구 호출 직후 Claude 에게 기록할 때라고 한 줄 알립니다. 작업을 막지 않고 서버를 부르지 않습니다 |
 | 훅 `hooks/hooks.json` → `hooks/turn-gate.sh` | 턴 끝 관문(Stop). 도구를 쓰고도 업무 기록 없이 끝나려는 Claude 의 턴을 한 번 돌려보냅니다. 사람의 입력은 막지 않고 서버를 부르지 않습니다 |
+| 훅 `hooks/hooks.json` → `hooks/subagent-report.sh` | 하위 작업 알림(`SubagentStart`·`SubagentStop`). 하위 작업이 시작·끝날 때 그 하위 작업의 모델 호출 번호를 사용량 수집 주소로 보내, 하위 작업 비용을 그 하위 작업에 정확히 잇게 합니다. 수집 설정이 없으면 아무것도 하지 않고, 출력이 없으며 작업을 막지 않습니다 |
 
 ## 업무 기록 알림 훅
 
@@ -79,9 +80,35 @@ claude plugin install cofounder@jengablock
 - **끄기**: `COFOUNDER_WORK_HOOK=off`. `SPNV_EXECUTOR` 가 설정된 세션에서도 보지 않습니다.
 - 셸은 `sed`·`awk`·`tr` 만 씁니다.
 
+## 하위 작업 알림
+
+하위 작업(Agent 도구로 띄운 서브에이전트)은 부모와 같은 세션으로 사용량을 보내고, 사용량 사건의 요청 id 는 띄운
+요청이 아니라 그때 진행 중인 요청 값입니다. 그래서 서버는 하위 작업의 모델 호출 비용이 어느 하위 작업의 것인지
+정확히 알 수 없었습니다. 하위 작업 기록 파일의 assistant 줄마다 붙은 `requestId`(`req_…`)가 사용량 사건
+`api_request` 의 `request_id` 와 같은 값이라, 이 훅이 그 번호를 서버에 보냅니다.
+
+| 언제 | 보내는 것 |
+|---|---|
+| `SubagentStart` | `session_id` · `agent_id` · `agent_type` · `prompt_id` · 시각 |
+| `SubagentStop` | 같은 값 + `agent_transcript_path` 에서 읽은 `requestId` 목록(중복 제거) + 그 기록 파일의 첫 `promptId`(띄운 요청) + 시각 |
+
+- 보내는 곳과 자격은 사용량 수집과 같습니다 — 사용자 설정 `env` 의 `OTEL_EXPORTER_OTLP_ENDPOINT`(…/api/otel)에
+  `/v1/subagents` 를 붙인 주소로, `OTEL_EXPORTER_OTLP_HEADERS` 의 `Authorization` 값을 달아 보냅니다. 둘 중 하나라도
+  없거나 주소가 `/api/otel` 로 끝나지 않으면(다른 수집처) 아무것도 하지 않습니다. 플러그인 MCP 연결은 OAuth 라
+  훅이 쓸 수 없습니다.
+- 토큰은 명령 인자에 싣지 않습니다(curl 설정을 stdin 으로 줍니다).
+- 기록 파일의 대화 본문은 보내지 않습니다. 번호(`req_…`)와 요청 id 만 읽습니다.
+- 출력이 없고 종료 코드는 늘 0 입니다. 서버가 없거나 느려도 3초 안에 끝납니다.
+- 다른 `Stop` 훅이 하위 작업을 한 번 돌려보내면 끝 알림이 두 번 갑니다. 서버는 (사람, 세션, 하위 작업 id)로 한
+  행에 모읍니다.
+- 입력 필드는 Claude Code 2.1.296 에서 확인했습니다(2026-10-19).
+- **끄기**: `COFOUNDER_WORK_HOOK=off`.
+
 ### 실행 환경
 
-훅은 POSIX `sh` 스크립트이고 `tr`·`sed`·`mkdir`·`rm` 만 씁니다. jq·Python·Node 는 필요 없습니다.
+훅은 POSIX `sh` 스크립트이고 `tr`·`sed`·`mkdir`·`rm` 만 씁니다. jq·Python·Node 는 필요 없습니다. 하위 작업
+알림 훅은 여기에 `grep`·`awk`·`date`·`curl` 을 더 씁니다(macOS·Linux·Git for Windows 에 들어 있습니다). curl 이
+없으면 그 훅은 아무것도 하지 않습니다.
 
 | 환경 | 동작 |
 |---|---|
@@ -136,6 +163,7 @@ claude plugin validate ./claude-plugin
 claude plugin validate ./claude-plugin/plugins/cofounder --strict
 sh claude-plugin/tests/work-reminder.test.sh   # 알림 훅 단위 시험
 sh claude-plugin/tests/turn-gate.test.sh       # 턴 끝 관문 단위 시험
+sh claude-plugin/tests/subagent-report.test.sh # 하위 작업 알림 훅 단위 시험
 ```
 
 마켓플레이스 이름 `jengablock`, 플러그인 이름 `cofounder`. 스킬은 `/cofounder:<스킬>` 로 부릅니다.

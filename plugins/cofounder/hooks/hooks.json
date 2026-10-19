@@ -1,5 +1,5 @@
 {
-  "description": "업무 기록 알림과 턴 끝 관문 — 세션의 첫 요청, 과제 선점·완료, 세션의 첫 산출물 작업 직후 업무 지도 기록(mark_work)을 알리고, 도구를 쓰고도 기록 없이 끝나려는 턴은 한 번 돌려보낸다(사람의 입력은 막지 않는다). 끄기: COFOUNDER_WORK_HOOK=off",
+  "description": "업무 기록 알림과 턴 끝 관문 — 세션의 첫 요청, 과제 선점·완료, 세션의 첫 산출물 작업 직후 업무 지도 기록(mark_work)을 알리고, 도구를 쓰고도 기록 없이 끝나려는 턴은 한 번 돌려보낸다(사람의 입력은 막지 않는다). 하위 작업이 시작·끝날 때 그 하위 작업의 모델 호출 번호를 사용량 수집 주소로 알린다(막지 않는다). 끄기: COFOUNDER_WORK_HOOK=off",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -31,6 +31,28 @@
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/turn-gate.sh\"",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-report.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-report.sh\"",
+            "timeout": 10
           }
         ]
       }
